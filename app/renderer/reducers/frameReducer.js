@@ -117,22 +117,32 @@ const frameReducer = (state, action, immutableAction) => {
         state = state.setIn(['frames', index, 'title'], title)
       }
 
-      // TODO fix race condition in Muon more info in #9000
-      const active = immutableAction.getIn(['tabValue', 'active'])
-      const hasTabInHoverState = state.getIn(['ui', 'tabs', 'hoverTabIndex'])
-      if (active != null) {
-        if (active) {
-          state = state.set('activeFrameKey', frame.get('key'))
-          if (hasTabInHoverState != null) {
-            state = state.set('previewFrameKey', null)
-          }
-          if (frame.getIn(['ui', 'tabs', 'hoverTabPageIndex']) == null) {
-            state = state.deleteIn(['ui', 'tabs', 'previewTabPageIndex'])
-          }
-          state = state.setIn(['frames', index, 'lastAccessedTime'], new Date().getTime())
+      // Unlike tabValue, active state for changeInfo will be fired only once
+      // when a tab is set to active, and will not be updated for the same tab
+      // as long as it remains active.
+      // This likely deprecates tabValue but still lacks state for fresh profile.
+      // TODO check if changeInfo is a better fit than tabValue and make use
+      // of it app-wise and deprecate the latter.
+      const active = immutableAction.getIn(['changeInfo', 'active'])
 
-          state = frameStateUtil.updateTabPageIndex(state, tabId)
+      // This is a workaround for changeInfo which do not provide
+      // active state on a fresh profile.
+      if (active == null) {
+        immutableAction.setIn(['changeInfo', 'active'], true)
+        state = state.set('activeFrameKey', frame.get('key'))
+      }
+      const hasTabInHoverState = state.getIn(['ui', 'tabs', 'hoverTabIndex'])
+      if (active) {
+        state = state.set('activeFrameKey', frame.get('key'))
+        if (hasTabInHoverState != null) {
+          state = state.set('previewFrameKey', null)
         }
+        if (frame.getIn(['ui', 'tabs', 'hoverTabPageIndex']) == null) {
+          state = state.deleteIn(['ui', 'tabs', 'previewTabPageIndex'])
+        }
+        state = state.setIn(['frames', index, 'lastAccessedTime'], new Date().getTime())
+
+        state = frameStateUtil.updateTabPageIndex(state, tabId)
       }
       break
     case windowConstants.WINDOW_SET_NAVIGATED:
